@@ -1,0 +1,36 @@
+[{
+        "id": "flavorizer_deep_01",
+        "image": "eval/images/flavorizer_deep_01.jpg",
+        "expected": "deep_corrosion_replace",
+        "part_type": "flavorizer_bar",
+        "notes": "Through-holes/perforations and heavy pitting on stainless bar."
+    },
+    {
+        "id": "flavorizer_deep_02",
+        "image": "eval/images/flavorizer_deep_02.jpg",
+        "expected": "deep_corrosion_replace",
+        "part_type": "flavorizer_bar",
+        "notes": "Large dark cavity and missing material; scaly surface."
+    },
+    {
+        "id": "flavorizer_deep_03",
+        "image": "eval/images/flavorizer_deep_03.jpg",
+        "expected": "deep_corrosion_replace",
+        "part_type": "flavorizer_bar",
+        "notes": "Severe pitting/edge loss along the bar."
+    },
+    {
+        "id": "flavorizer_surface_01",
+        "image": "eval/images/flavorizer_surface_01.jpg",
+        "expected": "cleanable_surface_rust",
+        "part_type": "flavorizer_bar",
+        "notes": "Superficial discoloration/heat tint; geometry intact."
+    },
+    {
+        "id": "flavorizer_surface_02",
+        "image": "eval/images/flavorizer_surface_02.jpg",
+        "expected": "cleanable_surface_rust",
+        "part_type": "flavorizer_bar",
+        "notes": "Light film of rust, smooth surface, no visible metal loss."
+    }
+]
