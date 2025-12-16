@@ -4,9 +4,9 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import Settings, get_settings
-from .models import InspectionRequest, InspectionResult
+from .models import InspectionRequest, UrlInspectionRequest, InspectionResult
 from .clients.gemini import GeminiClient
-from .services.inspection import inspect_image
+from .services.inspection import inspect_image, inspect_image_url
 
 app = FastAPI(title="Rust Inspector", version="0.1.0")
 
@@ -63,6 +63,29 @@ async def inspect(
 
     try:
         result = await inspect_image(image_bytes, request.part_type, settings, client)
+    except Exception as exc:  # pragma: no cover - top-level protection
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return result
+
+
+@app.post(
+    "/inspect_url",
+    response_model=InspectionResult,
+    dependencies=[Depends(require_api_token)],
+)
+async def inspect_via_url(
+    request: UrlInspectionRequest,
+    settings: Settings = Depends(get_settings),
+    client: GeminiClient = Depends(get_client),
+) -> InspectionResult:
+    """
+    Inspect an image provided as a public URL. This is intended for platforms
+    like Mavenoid where the image is already hosted and only the URL is
+    available to this backend.
+    """
+    try:
+        result = await inspect_image_url(request.image_url, request.part_type, settings, client)
     except Exception as exc:  # pragma: no cover - top-level protection
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

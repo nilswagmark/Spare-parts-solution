@@ -1,9 +1,18 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 
 
 class InspectionRequest(BaseModel):
+    part_type: Optional[str] = Field(
+        default=None, description="Optional hint: burner_tube, grate, flavorizer_bar, etc.",
+    )
+
+
+class UrlInspectionRequest(BaseModel):
+    image_url: HttpUrl = Field(
+        description="Publicly accessible URL to the image of the part to inspect.",
+    )
     part_type: Optional[str] = Field(
         default=None, description="Optional hint: burner_tube, grate, flavorizer_bar, etc.",
     )

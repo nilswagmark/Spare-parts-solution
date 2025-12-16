@@ -115,3 +115,59 @@ class GeminiClient:
         parsed.setdefault("model_version", self.model)
         return parsed
 
+    async def classify_image_url(self, image_url: str, part_type: Optional[str]) -> Dict[str, Any]:
+        """
+        Same as classify_image, but takes a publicly accessible image URL.
+        This is useful for platforms (like Mavenoid) that can host the image
+        and pass only a URL to this backend.
+        """
+        start = time.time()
+
+        if not self.api_key:
+            raise RuntimeError("OPENAI_API_KEY is not configured; cannot call OpenAI.")
+
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        prompt_text = PROMPT + (f"\n\nPart type: {part_type}" if part_type else "")
+
+        body: Dict[str, Any] = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_text},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": image_url},
+                        },
+                    ],
+                }
+            ],
+            "response_format": {"type": "json_object"},
+        }
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(url, headers=headers, json=body)
+            resp.raise_for_status()
+            data = resp.json()
+
+        latency_ms = int((time.time() - start) * 1000)
+
+        try:
+            choices = data.get("choices", [])
+            first = choices[0] if choices else {}
+            message = first.get("message", {})
+            text = message.get("content", "")
+            parsed = json.loads(text)
+        except Exception as exc:  # pragma: no cover - defensive parse
+            raise RuntimeError(f"Failed to parse OpenAI response: {data}") from exc
+
+        parsed["latency_ms"] = latency_ms
+        parsed.setdefault("model_version", self.model)
+        return parsed
+
