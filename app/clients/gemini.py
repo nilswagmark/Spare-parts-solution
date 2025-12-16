@@ -42,18 +42,17 @@ class GeminiClient:
         self.settings = settings
 
     async def classify_image(self, image_bytes: bytes, part_type: Optional[str]) -> Dict[str, Any]:
+        """
+        Call the real Gemini (or compatible) vision endpoint.
+
+        Demo/offline mode has been removed so that every request goes through
+        the VLM/LLM. If no API key is configured, this will raise rather than
+        silently returning a placeholder.
+        """
         start = time.time()
 
-        if self.settings.demo_mode or not self.api_key:
-            # Offline/demo path: deterministic placeholder for local testing
-            latency_ms = int((time.time() - start) * 1000)
-            return {
-                "classification": "cleanable_surface_rust",
-                "confidence": 0.5,
-                "rationale": "Demo mode: no API key present.",
-                "model_version": f"{self.model}-demo",
-                "latency_ms": latency_ms,
-            }
+        if not self.api_key:
+            raise RuntimeError("GEMINI_API_KEY is not configured; cannot call Gemini.")
 
         headers = {"Authorization": f"Bearer {self.api_key}"}
         files = {
