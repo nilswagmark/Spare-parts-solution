@@ -1,6 +1,9 @@
 import time
 from typing import Any, Dict, Optional
 
+import base64
+import json
+
 import httpx
 
 from ..config import Settings
@@ -43,7 +46,7 @@ class GeminiClient:
 
     async def classify_image(self, image_bytes: bytes, part_type: Optional[str]) -> Dict[str, Any]:
         """
-        Call the real Gemini (or compatible) vision endpoint.
+        Call the real Gemini vision endpoint.
 
         Demo/offline mode has been removed so that every request goes through
         the VLM/LLM. If no API key is configured, this will raise rather than
@@ -54,25 +57,47 @@ class GeminiClient:
         if not self.api_key:
             raise RuntimeError("GEMINI_API_KEY is not configured; cannot call Gemini.")
 
-        headers = {"Authorization": f"Bearer {self.api_key}"}
-        files = {
-            "image": ("image.jpg", image_bytes, "image/jpeg"),
-        }
-        data = {
-            "prompt": PROMPT,
-            "part_type": part_type or "",
-            "model": self.model,
-        }
+        # Encode image as base64 for Gemini inline_data.
+        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
-        # NOTE: replace the URL with the official Gemini Vision endpoint when wiring this up.
-        url = "https://generativelanguage.googleapis.com/v1beta/vision:classify-rust"
+        # Construct Gemini generateContent request.
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        headers = {"Content-Type": "application/json"}
+        body: Dict[str, Any] = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": PROMPT + (f"\n\nPart type: {part_type}" if part_type else "")},
+                        {
+                            "inline_data": {
+                                "mime_type": "image/jpeg",
+                                "data": image_b64,
+                            }
+                        },
+                    ]
+                }
+            ]
+        }
 
         async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(url, headers=headers, data=data, files=files)
+            resp = await client.post(url, headers=headers, json=body)
             resp.raise_for_status()
-            payload = resp.json()
+            data = resp.json()
 
         latency_ms = int((time.time() - start) * 1000)
-        payload["latency_ms"] = latency_ms
-        return payload
+
+        # Gemini returns text; our prompt instructs it to output JSON.
+        try:
+            candidates = data.get("candidates", [])
+            first = candidates[0] if candidates else {}
+            parts = first.get("content", {}).get("parts", [])
+            text = parts[0].get("text", "") if parts else ""
+            parsed = json.loads(text)
+        except Exception as exc:  # pragma: no cover - defensive parse
+            raise RuntimeError(f"Failed to parse Gemini response: {data}") from exc
+
+        # Attach latency and model version for downstream logic.
+        parsed["latency_ms"] = latency_ms
+        parsed.setdefault("model_version", self.model)
+        return parsed
 
