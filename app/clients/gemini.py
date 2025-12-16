@@ -39,14 +39,20 @@ Output JSON only. No markdown.
 
 
 class GeminiClient:
+    """
+    Despite the name, this client now talks to OpenAI GPT vision models.
+    The rest of the app can stay unchanged; configuration is driven by
+    OPENAI_API_KEY and OPENAI_MODEL in the environment.
+    """
+
     def __init__(self, settings: Settings):
-        self.api_key = settings.gemini_api_key
-        self.model = settings.gemini_model
+        self.api_key = settings.openai_api_key
+        self.model = settings.openai_model
         self.settings = settings
 
     async def classify_image(self, image_bytes: bytes, part_type: Optional[str]) -> Dict[str, Any]:
         """
-        Call the real Gemini vision endpoint.
+        Call the OpenAI chat completions API with image input.
 
         Demo/offline mode has been removed so that every request goes through
         the VLM/LLM. If no API key is configured, this will raise rather than
@@ -55,28 +61,36 @@ class GeminiClient:
         start = time.time()
 
         if not self.api_key:
-            raise RuntimeError("GEMINI_API_KEY is not configured; cannot call Gemini.")
+            raise RuntimeError("OPENAI_API_KEY is not configured; cannot call OpenAI.")
 
-        # Encode image as base64 for Gemini inline_data.
+        # Encode image as base64 for data URL.
         image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        image_url = f"data:image/jpeg;base64,{image_b64}"
 
-        # Construct Gemini generateContent request.
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
-        headers = {"Content-Type": "application/json"}
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        prompt_text = PROMPT + (f"\n\nPart type: {part_type}" if part_type else "")
+
         body: Dict[str, Any] = {
-            "contents": [
+            "model": self.model,
+            "messages": [
                 {
-                    "parts": [
-                        {"text": PROMPT + (f"\n\nPart type: {part_type}" if part_type else "")},
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_text},
                         {
-                            "inline_data": {
-                                "mime_type": "image/jpeg",
-                                "data": image_b64,
-                            }
+                            "type": "image_url",
+                            "image_url": {"url": image_url},
                         },
-                    ]
+                    ],
                 }
-            ]
+            ],
+            # Ask OpenAI to respond with a JSON object so we can parse it easily.
+            "response_format": {"type": "json_object"},
         }
 
         async with httpx.AsyncClient(timeout=60) as client:
@@ -86,15 +100,15 @@ class GeminiClient:
 
         latency_ms = int((time.time() - start) * 1000)
 
-        # Gemini returns text; our prompt instructs it to output JSON.
+        # OpenAI returns the JSON as a string in message.content.
         try:
-            candidates = data.get("candidates", [])
-            first = candidates[0] if candidates else {}
-            parts = first.get("content", {}).get("parts", [])
-            text = parts[0].get("text", "") if parts else ""
+            choices = data.get("choices", [])
+            first = choices[0] if choices else {}
+            message = first.get("message", {})
+            text = message.get("content", "")
             parsed = json.loads(text)
         except Exception as exc:  # pragma: no cover - defensive parse
-            raise RuntimeError(f"Failed to parse Gemini response: {data}") from exc
+            raise RuntimeError(f"Failed to parse OpenAI response: {data}") from exc
 
         # Attach latency and model version for downstream logic.
         parsed["latency_ms"] = latency_ms

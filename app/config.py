@@ -6,6 +6,11 @@ import os
 
 
 class Settings(BaseModel):
+    # LLM configuration (now using OpenAI GPT vision models)
+    openai_api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+    # Legacy Gemini fields kept for backwards-compat (currently unused)
     gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-1.5-pro")
     confidence_threshold: float = float(os.getenv("CONFIDENCE_THRESHOLD", "0.72"))
