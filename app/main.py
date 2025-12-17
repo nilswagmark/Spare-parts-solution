@@ -85,7 +85,10 @@ async def inspect_via_url(
     available to this backend.
     """
     try:
-        result = await inspect_image_url(request.image_url, request.part_type, settings, client)
+        # UrlInspectionRequest.image_url is a pydantic HttpUrl, which isn't directly
+        # JSON-serializable. Cast to plain str before passing it downstream so that
+        # OpenAI payload construction works correctly.
+        result = await inspect_image_url(str(request.image_url), request.part_type, settings, client)
     except Exception as exc:  # pragma: no cover - top-level protection
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
